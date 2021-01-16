@@ -18,3 +18,5 @@ sudo docker run \
     --volume "$HOME/nvdli-data:/nvdli-nano/data" \
     --device /dev/video0 \
     "nvcr.io/nvidia/dli/dli-nano-ai:v2.0.1-r32.4.4"
+
+echo "Reminder: the JupyterLab password is: dlinano"
