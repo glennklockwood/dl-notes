@@ -10,7 +10,7 @@
 #
 # https://ngc.nvidia.com/catalog/containers/nvidia:dli:dli-nano-ai
 
-sudo docker run \
+docker run \
     --runtime nvidia \
     -it \
     --rm \
