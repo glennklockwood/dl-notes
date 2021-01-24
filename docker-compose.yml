@@ -1,0 +1,23 @@
+# Use the Deep Learning Institute Intro to AI container as an interactive
+# environment.  Run using
+#
+#   docker-compose run --rm app 
+#
+---
+version: "3"
+services:
+  app:
+    image: "nvcr.io/nvidia/dli/dli-nano-ai:v2.0.1-r32.4.4"
+    user: "1000:44"
+    working_dir: $HOME
+    devices:
+      - /dev/video0
+    volumes:
+      - /etc/group:/etc/group:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow:ro
+      - /etc/gshadow:/etc/gshadow:ro
+      - $HOME:$HOME
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash
