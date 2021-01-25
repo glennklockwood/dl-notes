@@ -1,10 +1,18 @@
 #!/usr/bin/env python
+"""Image classification with pytorch
+
+Adapted from the NVIDIA Deep Learning Institute's "Getting Started with AI on
+Jetson Nano" course notebook on classification.  Assumes you already have
+captured a training dataset using the notebook provided by that course; this
+reimplements the training and inference parts of that notebook in standalone
+Python.
+
+Implements the five-class example to infer how many fingers you are holding up.
+"""
 
 import os
 import glob
 import time
-import uuid
-import subprocess
 
 import cv2
 import torch
@@ -316,6 +324,8 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
     return model
 
 def main():
+    """Train a model and begin inferencing
+    """
     transforms = torchvision.transforms.Compose([
         torchvision.transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
         torchvision.transforms.Resize((224, 224)),
