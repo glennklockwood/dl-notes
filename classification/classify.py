@@ -62,6 +62,13 @@ class ImageClassificationDataset(torch.utils.data.Dataset):
         return len(self.annotations)
 
     def __getitem__(self, idx):
+        """Returns an element of the dataset
+
+        Returns:
+            tuple: Elements (image, category) where image is a Tensor and
+            category is an int corresponding to the index of self.categories
+            to which image belongs.
+        """
         annotation = self.annotations[idx]
         image = cv2.imread(annotation['image_path'], cv2.IMREAD_COLOR)
         image = PIL.Image.fromarray(image)
@@ -70,6 +77,15 @@ class ImageClassificationDataset(torch.utils.data.Dataset):
         return image, annotation['category_index']
 
     def get_count(self, category):
+        """Returns number of data with the given classification
+
+        Args:
+            category (str): Category which should be counted.  Must be an
+                element of self.categories
+
+        Returns:
+            int: Number of elements that match given category
+        """
         i = 0
         for annotation in self.annotations:
             if annotation['category'] == category:
@@ -99,7 +115,7 @@ def save_model(model, path):
     torch.save(model.state_dict(), path)
 
 def preprocess(image):
-    """Prepare the image for our model
+    """Prepares the image for our model
 
     Performs the following:
 
@@ -142,23 +158,64 @@ def preprocess(image):
     image.sub_(PREPROCESS_MEAN[:, None, None]).div_(PREPROCESS_STD[:, None, None])
     return image[None, ...]
 
-def infer_image(model, camera):
-    image = camera.value
+def infer_image(model, image):
+    """Classifies a given image
+
+    Args:
+        model (Model): model to be used for inference
+        image (numpy.array): bgr8 image to be classified
+
+    Returns:
+        numpy.array: Vector containing the softmax-normalized probabilities for
+        each of the categories in the fully connected layer
+    """
     preprocessed = preprocess(image)
-    output = model(preprocessed)
+    output = model(preprocessed) # output = torch.Tensor of size (1, 5)
+    # softmax() returns a tensor of size (1, 5)
+    # detach() returns the same tensor of size (1, 5)
+    # cpu() returns the same tensor, but on the host instead of gpu
+    # numpy() returns a numpy array of size (1, 5)
+    # flatten() returns a numpy array of size (5,)
     output = torch.nn.functional.softmax(output, dim=1).detach().cpu().numpy().flatten()
     return output
 
 def train(model, dataset, optimizer, epochs=10, batch_size=8):
+    """Trains or evaluates a model given a dataset
+
+    Args:
+        model (Model): model to be used for inference
+        dataset (ImageClassificationDataset):
+        optimizer (torch.optim.Optimizer): optimizer to use
+        epochs (int): number of epochs to use for training.  If zero, run the
+            model in eval mode.
+        batch_size (int): size of each batch
+
+    Returns:
+        Model: the mutated model object
+    """
 
     device = torch.device('cuda')
     model = model.to(device)
 
+    # train_loader is a "Map-style dataset" since it implements __getitem__()
+    # and __len__().  These allow the DataLoader to randomly pick elements
+    # between 0 and len(DataLoader) in batches of the given size.
+    #
+    # Our choice of __getitem__() in ImageClassificationDataset returns a tuple
+    # with elements (image, category).
+    #
     train_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True)
 
+    # We normally keep the model in eval() mode so that new images fed into it
+    # are used for inference, not training.  Here, we explicitly turn on
+    # training mode since we are about to train.
+    #
+    # eval mode only matters if there is a dropout layer which would cause
+    # the model to mutate on inference, but it's safe to be explicit either way.
+    #
     if epochs:
         model = model.train()
     else:
@@ -169,6 +226,7 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
     if epoch == 0:
         eval_only = True
 
+    # Iterate through the epochs
     while epoch > 0 or eval_only:
         i = 0
         sum_loss = 0.0
@@ -176,42 +234,84 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
         if not eval_only:
             print("beginning epoch %d" % (epochs - epoch + 1))
 
+        # for each epoch, get a batch of samples
         for images, labels in iter(train_loader):
-            # send data to device
-            images = images.to(device)
-            labels = labels.to(device)
+            # Send data to GPU - images and labels now refer to data on the GPU
+            images = images.to(device) # of dimensions (epochs, 3, 224, 224)
+            labels = labels.to(device) # of dimensions (epochs)
 
             if not eval_only:
-                # zero gradients of parameters
+                # Zero gradients of parameters, required because pytorch
+                # otherwise accumulates gradients on backpropogation.
                 optimizer.zero_grad()
 
-            # execute model to get outputs
+            # Feed new image into model and get the output based on its training
+            # so far.  outputs has dimensions (epochs, num_categories)
             outputs = model(images)
 
-            # compute loss
+            # Compute the loss function based on the result our model gave and
+            # the ground truth we know.  The cross entropy loss function
+            # computes the softmax of the output (fully connected) layer, then
+            # calculates the negative log likelihood of those layers.  It is
+            # equivalent to
+            #
+            # torch.nn.functional.nll_loss(torch.nn.functional.log_softmax(outputs, dim=1), labels)
+            #
+            # It returns a Tensor with grad_fn set to NllLossBackward so it can
+            # be backpropagated using the .backward() method.  The return tensor
+            # is a scalar whose sole value is the calculated loss.
+            #
+            # See https://ljvmiranda921.github.io/notebook/2017/08/13/softmax-and-the-negative-log-likelihood/
+            #
             loss = torch.nn.functional.cross_entropy(outputs, labels)
 
             if not eval_only:
-                # run backpropogation to accumulate gradients
+                # run backpropogation to calculate and store gradients
                 loss.backward()
 
-                # step optimizer to adjust parameters
+                # run the optimizer to adjust parameters of the model
                 optimizer.step()
 
-            # increment progress
+                # Q: how are model, loss, and optimizer connected?  optimizer
+                # was initialized with the model parameters, so are model
+                # parameters pointers that optimizer.step() mutates?  how does
+                # it know what the calculated loss is?
+
+            # outputs.argmax(1) returns a Tensor containing the indices that
+            # correspond to the maximum value along a dimension.  argmax(1)
+            # tells us, for each epoch (dim=1), which category index had the
+            # highest value.  For example,
+            #
+            # outputs[1] = tensor([-2.9911,  4.8263,  0.8418, -3.6851, -4.0162])
+            # outputs.argmax(1)[1] = tensor(1)
+            #
+            # that is, for epoch 1, the category with the highest value
+            # (predicted confidence) is index 1
+            #
+            # (outputs.argmax(1) - labels) compares the model with the highest
+            # predicted classification to the ground-truth label and tells us
+            # if the best-predicted class matched ground-truth (value is zero)
+            # or not (value is nonzero).
             error_count += len(torch.nonzero(outputs.argmax(1) - labels).flatten())
+
+            # count is the number of images trained against during this epoch
             count = len(labels.flatten())
+            # i is the total number of images trained against
             i += count
+            # sum_loss is the sum of all losses
             sum_loss += float(loss)
 
         print("  complete: %.1f" % (i / len(dataset)))
+        # we express loss as the average loss per image trained
         print("  loss:     %f" % (sum_loss / i))
+        # accuracy is a function of the average error per image
         print("  accuracy: %f" % (1.0 - error_count / i))
 
         epoch = epoch - 1
         if eval_only:
             break
 
+    # switch our model back to eval (inference) mode from train mode
     model = model.eval()
     return model
 
@@ -243,7 +343,7 @@ def main():
     camera.unobserve_all()
 
     while True:
-        output = infer_image(model, camera)
+        output = infer_image(model, camera.value)
         category_index = output.argmax()
         print("Prediction: %s" % dataset.categories[category_index])
         for i, score in enumerate(list(output)):
