@@ -31,3 +31,18 @@ services:
       - /dev/video0
     stdin_open: true
     tty: true
+  l4t-ml:
+    image: "nvcr.io/nvidia/l4t-ml:r32.4.4-py3"
+    user: "1000:44"
+    working_dir: $PWD
+    devices:
+      - /dev/video0
+    volumes:
+      - /etc/group:/etc/group:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow:ro
+      - /etc/gshadow:/etc/gshadow:ro
+      - $HOME:$HOME
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash
