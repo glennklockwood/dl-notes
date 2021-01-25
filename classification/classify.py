@@ -22,6 +22,28 @@ PREPROCESS_MEAN = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 PREPROCESS_STD = torch.Tensor([0.229, 0.224, 0.225]).cuda()
 
 class ImageClassificationDataset(torch.utils.data.Dataset):
+    """Dataset composed of images with classifications
+
+    Loads images and classifications.  Assumes directory structure of
+
+        directory/
+        directory/categories[0]
+        directory/categories[1]
+        ...
+
+    where categories[1] etc correspond to the elements passed as the
+    ``categories`` argument.
+
+    Args:
+        directory (str): Path to base directory containing images
+        categories (list of str): List of valid classifications
+
+    Attributes:
+        categories (list of str): List of valid classifications
+        transform:
+        annotations (list of dict): Metadata describing each member of the
+            loaded dataset
+    """
     def __init__(self, directory, categories, transform=None):
         self.categories = categories
         self.transform = transform
@@ -55,16 +77,68 @@ class ImageClassificationDataset(torch.utils.data.Dataset):
         return i
 
 def load_model(model, path):
+    """Loads a trained pytorch model
+
+    Args:
+        model (Model): model to load trained state into
+        path (str): Path to model trained state
+
+    Returns:
+        Model
+    """
     model.load_state_dict(torch.load(path))
     return model
 
 def save_model(model, path):
+    """Saves a trained pytorch model
+
+    Args:
+        model (Model): model whose trained state should be saved
+        path (str): Path to file into which trained state should be saved
+    """
     torch.save(model.state_dict(), path)
 
 def preprocess(image):
+    """Prepare the image for our model
+
+    Performs the following:
+
+    1. Transform the image in bgr8 format to a tensor
+    2. Sends tensor to the GPU
+    3. Normalizes the tensor
+    4. Adds a new first dimension to the tensor full of Nones
+
+    Args:
+      image (numpy.array): Image from a camera represented as in bgr8
+          format - an array with dimensions (224, 224, 3) on the host
+          memory
+
+    Returns:
+        torch.Tensor: Transformed tensor on the GPU with dimensions
+        [1, 3, 224, 224]
+    """
     device = torch.device('cuda')
-    image = PIL.Image.fromarray(image)
+
+    # Convert pixel array into a tensor, then send it to GPU
+    #
+    #   The input is an array of [224, 224, 3]
+    #   The output is a tensor of [3, 224, 224]
+    #
     image = torchvision.transforms.functional.to_tensor(image).to(device)
+
+    # Normalize the input image.
+    #
+    # Tensor.sub_ is the in-place version of torch.sub()
+    # Tensor.div_ is the in-place version of torch.div()
+    #
+    # Thus we are:
+    #
+    # 1. subtracting the mean const from the image
+    # 2. dividing this centeredby the standard deviation const
+    #
+    # The constants (mean and std) come from pytorch and what its models expect
+    # input to look like.  See https://pytorch.org/docs/stable/torchvision/models.html
+    #
     image.sub_(PREPROCESS_MEAN[:, None, None]).div_(PREPROCESS_STD[:, None, None])
     return image[None, ...]
 
