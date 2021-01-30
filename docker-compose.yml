@@ -23,6 +23,7 @@ services:
     tty: true
     entrypoint: /bin/bash
   notebook:
+    # note: this runs as root to follow the DLI course instructions
     image: "nvcr.io/nvidia/dli/dli-nano-ai:v2.0.1-r32.4.4"
     network_mode: host
     volumes:
@@ -46,3 +47,20 @@ services:
     stdin_open: true
     tty: true
     entrypoint: /bin/bash
+  l4t-ml-notebook:
+    image: "nvcr.io/nvidia/l4t-ml:r32.4.4-py3"
+    network_mode: host
+    user: "1000:44"
+    working_dir: $PWD
+    devices:
+      - /dev/video0
+    volumes:
+      - /etc/group:/etc/group:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/shadow:/etc/shadow:ro
+      - /etc/gshadow:/etc/gshadow:ro
+      - $HOME:$HOME
+      - $PWD/jupyter.log:/var/log/jupyter.log
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash -c "jupyter lab --ip 0.0.0.0 --port 8888 --allow-root 2>&1 | cat"
