@@ -11,6 +11,7 @@ Implements the five-class example to infer how many fingers you are holding up.
 """
 
 import os
+import sys
 import glob
 import time
 
@@ -26,8 +27,10 @@ import jetcam.usb_camera
 
 CATEGORIES = ['1', '2', '3', '4', '5']
 
-PREPROCESS_MEAN = torch.Tensor([0.485, 0.456, 0.406]).cuda()
-PREPROCESS_STD = torch.Tensor([0.229, 0.224, 0.225]).cuda()
+PREPROCESS_MEAN = None
+PREPROCESS_STD = None
+
+USE_GPU = False
 
 class ImageClassificationDataset(torch.utils.data.Dataset):
     """Dataset composed of images with classifications
@@ -141,14 +144,16 @@ def preprocess(image):
         torch.Tensor: Transformed tensor on the GPU with dimensions
         [1, 3, 224, 224]
     """
-    device = torch.device('cuda')
+    global PREPROCESS_MEAN, PREPROCESS_STD
+    if USE_GPU:
+        device = torch.device('cuda')
 
     # Convert pixel array into a tensor, then send it to GPU
     #
     #   The input is an array of [224, 224, 3]
     #   The output is a tensor of [3, 224, 224]
     #
-    image = torchvision.transforms.functional.to_tensor(image).to(device)
+    image = torchvision.transforms.functional.to_tensor(image)#.to(device)
 
     # Normalize the input image.
     #
@@ -163,6 +168,14 @@ def preprocess(image):
     # The constants (mean and std) come from pytorch and what its models expect
     # input to look like.  See https://pytorch.org/docs/stable/torchvision/models.html
     #
+    if PREPROCESS_MEAN is None:
+        if USE_GPU:
+            PREPROCESS_MEAN = torch.Tensor([0.485, 0.456, 0.406]).cuda()
+            PREPROCESS_STD = torch.Tensor([0.229, 0.224, 0.225]).cuda()
+        else:
+            PREPROCESS_MEAN = torch.Tensor([0.485, 0.456, 0.406])
+            PREPROCESS_STD = torch.Tensor([0.229, 0.224, 0.225])
+
     image.sub_(PREPROCESS_MEAN[:, None, None]).div_(PREPROCESS_STD[:, None, None])
     return image[None, ...]
 
@@ -202,8 +215,9 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
         Model: the mutated model object
     """
 
-    device = torch.device('cuda')
-    model = model.to(device)
+    if USE_GPU:
+        device = torch.device('cuda')
+        model = model.to(device)
 
     # train_loader is a "Map-style dataset" since it implements __getitem__()
     # and __len__().  These allow the DataLoader to randomly pick elements
@@ -236,6 +250,7 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
 
     # Iterate through the epochs
     while epoch > 0 or eval_only:
+        tstart = time.time()
         i = 0
         sum_loss = 0.0
         error_count = 0.0
@@ -245,8 +260,9 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
         # for each epoch, get a batch of samples
         for images, labels in iter(train_loader):
             # Send data to GPU - images and labels now refer to data on the GPU
-            images = images.to(device) # of dimensions (epochs, 3, 224, 224)
-            labels = labels.to(device) # of dimensions (epochs)
+            if USE_GPU:
+                images = images.to(device) # of dimensions (epochs, 3, 224, 224)
+                labels = labels.to(device) # of dimensions (epochs)
 
             if not eval_only:
                 # Zero gradients of parameters, required because pytorch
@@ -315,6 +331,7 @@ def train(model, dataset, optimizer, epochs=10, batch_size=8):
         # accuracy is a function of the average error per image
         print("  accuracy: %f" % (1.0 - error_count / i))
 
+        print("  duration: %.2f secs" % (time.time() - tstart))
         epoch = epoch - 1
         if eval_only:
             break
@@ -343,9 +360,12 @@ def main():
     model = torchvision.models.resnet18(pretrained=True)
     model.fc = torch.nn.Linear(512, len(dataset.categories))
 
+    tstart = time.time()
     # trainining / transfer learning
     optimizer = torch.optim.Adam(model.parameters())
     model = train(model, dataset, optimizer, epochs=10, batch_size=8)
+    print("Took %.2f seconds to train" % (time.time() - tstart))
+    sys.exit(0)
 
     # inference
     camera = jetcam.usb_camera.USBCamera(width=224, height=224, capture_device=0)
