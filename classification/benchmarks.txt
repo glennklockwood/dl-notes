@@ -1,0 +1,133 @@
+Both on NVIDIA Jetson Nano
+
+GPU mode:
+
+    glock@63cf1fd7f85f:~/src/git/jetson/classification$ python3 classify.py 
+    Loaded dataset from thumbs_A
+               1: 15 images
+               2: 16 images
+               3: 16 images
+               4: 16 images
+               5: 15 images
+    beginning epoch 1
+    classify.py:319: UserWarning: This overload of nonzero is deprecated:
+        nonzero(Tensor input, *, Tensor out)
+    Consider using one of the following signatures instead:
+        nonzero(Tensor input, *, bool as_tuple) (Triggered internally at  ../torch/csrc/utils/python_arg_parser.cpp:766.)
+      error_count += len(torch.nonzero(outputs.argmax(1) - labels).flatten())
+      complete: 1.0
+      loss:     0.173404
+      accuracy: 0.474359
+      duration: 20.33 secs
+    beginning epoch 2
+      complete: 1.0
+      loss:     0.127624
+      accuracy: 0.641026
+      duration: 8.43 secs
+    beginning epoch 3
+      complete: 1.0
+      loss:     0.031821
+      accuracy: 0.935897
+      duration: 8.26 secs
+    beginning epoch 4
+      complete: 1.0
+      loss:     0.041287
+      accuracy: 0.846154
+      duration: 8.29 secs
+    beginning epoch 5
+      complete: 1.0
+      loss:     0.049508
+      accuracy: 0.897436
+      duration: 8.30 secs
+    beginning epoch 6
+      complete: 1.0
+      loss:     0.030408
+      accuracy: 0.923077
+      duration: 8.26 secs
+    beginning epoch 7
+      complete: 1.0
+      loss:     0.026716
+      accuracy: 0.948718
+      duration: 8.28 secs
+    beginning epoch 8
+      complete: 1.0
+      loss:     0.023953
+      accuracy: 0.948718
+      duration: 8.26 secs
+    beginning epoch 9
+      complete: 1.0
+      loss:     0.019474
+      accuracy: 0.935897
+      duration: 8.28 secs
+    beginning epoch 10
+      complete: 1.0
+      loss:     0.034104
+      accuracy: 0.923077
+      duration: 8.27 secs
+    Took 107.42 seconds to train
+
+CPU-only mode:
+
+    glock@63cf1fd7f85f:~/src/git/jetson/classification$ python3 classify.py 
+    Loaded dataset from thumbs_A
+               1: 15 images
+               2: 16 images
+               3: 16 images
+               4: 16 images
+               5: 15 images
+    beginning epoch 1
+    classify.py:319: UserWarning: This overload of nonzero is deprecated:
+        nonzero(Tensor input, *, Tensor out)
+    Consider using one of the following signatures instead:
+        nonzero(Tensor input, *, bool as_tuple) (Triggered internally at  ../torch/csrc/utils/python_arg_parser.cpp:766.)
+      error_count += len(torch.nonzero(outputs.argmax(1) - labels).flatten())
+      complete: 1.0
+      loss:     0.137483
+      accuracy: 0.602564
+      duration: 225.88 secs
+    beginning epoch 2
+      complete: 1.0
+      loss:     0.107169
+      accuracy: 0.615385
+      duration: 225.37 secs
+    beginning epoch 3
+      complete: 1.0
+      loss:     0.067801
+      accuracy: 0.743590
+      duration: 213.07 secs
+    beginning epoch 4
+      complete: 1.0
+      loss:     0.032269
+      accuracy: 0.935897
+      duration: 225.35 secs
+    beginning epoch 5
+      complete: 1.0
+      loss:     0.032284
+      accuracy: 0.935897
+      duration: 213.26 secs
+    beginning epoch 6
+      complete: 1.0
+      loss:     0.035467
+      accuracy: 0.961538
+      duration: 220.78 secs
+    beginning epoch 7
+      complete: 1.0
+      loss:     0.023957
+      accuracy: 0.910256
+      duration: 222.41 secs
+    beginning epoch 8
+      complete: 1.0
+      loss:     0.016940
+      accuracy: 0.974359
+      duration: 225.92 secs
+    beginning epoch 9
+      complete: 1.0
+      loss:     0.004259
+      accuracy: 1.000000
+      duration: 222.49 secs
+    beginning epoch 10
+      complete: 1.0
+      loss:     0.006604
+      accuracy: 0.987179
+      duration: 214.73 secs
+    Took 2209.27 seconds to train
